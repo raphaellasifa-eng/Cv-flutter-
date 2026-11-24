@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = 'URL_DE_TON_API';
+  static const String baseUrl = 'http://localhost/api-test/public⁠';
 
   static Future<List<dynamic>> getMembres() async {
     final response = await http.get(
