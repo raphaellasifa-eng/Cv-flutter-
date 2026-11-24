@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
- 
+ import 'Api_service.dart';
+
 class LoginPage extends StatefulWidget {
  final VoidCallback onLoginSuccess;
  
@@ -319,93 +320,138 @@ class MembreFamille {
    required this.lienParente,
    required this.imagePath,
    required this.roleOuInfo,
- });
+
+
+  class FamillePage extends StatefulWidget {
+  const FamillePage({super.key});
+
+  @override
+  State<FamillePage> createState() => _FamillePageState();
 }
- 
-class FamillePage extends StatelessWidget {
- const FamillePage({super.key});
- 
- final List<MembreFamille> _membres = const [
-   MembreFamille(
-     nom: 'Nom du père',
-     lienParente: 'Père',
-     imagePath: 'assets/images/papa.jpg',
-     roleOuInfo: 'Soutien et repère familial',
-   ),
-   MembreFamille(
-     nom: 'Nom de la mère',
-     lienParente: 'Mère',
-     imagePath: 'assets/images/maman.jpg',
-     roleOuInfo: 'Pilier et encouragement au quotidien',
-   ),
-   MembreFamille(
-     nom: 'Nom du frère',
-     lienParente: 'Frère',
-     imagePath: 'assets/images/frere.jpg',
-     roleOuInfo: 'Partage et entraide',
-   ),
-   MembreFamille(
-     nom: 'Nom de la sœur',
-     lienParente: 'Sœur',
-     imagePath: 'assets/images/soeur.jpg',
-     roleOuInfo: 'Complicité et soutien',
-   ),
- ];
- 
- @override
- Widget build(BuildContext context) {
-   return ListView.builder(
-     padding: const EdgeInsets.all(16.0),
-     itemCount: _membres.length,
-     itemBuilder: (context, index) {
-       final membre = _membres[index];
-       return Card(
-         elevation: 2,
-         margin: const EdgeInsets.only(bottom: 14),
-         child: Padding(
-           padding: const EdgeInsets.all(12.0),
-           child: Row(
-             children: [
-               CircleAvatar(
-                 radius: 36,
-                 backgroundImage: AssetImage(membre.imagePath),
-               ),
-               const SizedBox(width: 16),
-               Expanded(
-                 child: Column(
-                   crossAxisAlignment: CrossAxisAlignment.start,
-                   children: [
-                     Text(
-                       membre.nom,
-                       style: const TextStyle(
-                         fontSize: 17,
-                         fontWeight: FontWeight.bold,
-                       ),
-                     ),
-                     const SizedBox(height: 4),
-                     Text(
-                       'Lien de parenté : ${membre.lienParente}',
-                       style: const TextStyle(
-                         fontSize: 14,
-                         color: Colors.indigo,
-                         fontWeight: FontWeight.w500,
-                       ),
-                     ),
-                     const SizedBox(height: 4),
-                     Text(
-                       membre.roleOuInfo,
-                       style: const TextStyle(
-                         fontSize: 13,
-                         color: Colors.black87,
-                       ),
-                     ),
-                   ],
-                 ),
-               ),
-             ],
-           ),
-         ),
-       );
+
+class _FamillePageState extends State<FamillePage> {
+  late Future<List<dynamic>> _futureMembres;
+
+  @override
+  void initState() {
+    super.initState();
+    _futureMembres = ApiService.getMembres();
+  }
+
+  void _rechargerMembres() {
+    setState(() {
+      _futureMembres = ApiService.getMembres();
+    });
+  }
+
+  Future<void> _ouvrirDialogueAjout() async {
+    final nomController = TextEditingController();
+    final lienController = TextEditingController();
+
+    final valide = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Ajouter un membre'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: nomController,
+              decoration: const InputDecoration(labelText: 'Nom'),
+            ),
+            TextField(
+              controller: lienController,
+              decoration: const InputDecoration(labelText: 'Lien de parenté'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Annuler'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Ajouter'),
+          ),
+        ],
+      ),
+    );
+
+    if (valide == true) {
+      final nom = nomController.text.trim();
+      final lien = lienController.text.trim();
+      if (nom.isNotEmpty && lien.isNotEmpty) {
+        await ApiService.ajouterMembre(nom, lien);
+        _rechargerMembres();
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Famille')),
+      floatingActionButton: FloatingActionButton(
+        onPressed: _ouvrirDialogueAjout,
+        child: const Icon(Icons.add),
+      ),
+      body: FutureBuilder<List<dynamic>>(
+        future: _futureMembres,
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          if (snapshot.hasError) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Erreur : ${snapshot.error}'),
+                  const SizedBox(height: 8),
+                  ElevatedButton(
+                    onPressed: _rechargerMembres,
+                    child: const Text('Réessayer'),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          final membres = snapshot.data ?? [];
+          if (membres.isEmpty) {
+            return const Center(child: Text('Aucun membre trouvé.'));
+          }
+
+          return ListView.builder(
+            itemCount: membres.length,
+            itemBuilder: (context, index) {
+              final item = membres[index] as Map<String, dynamic>;
+              final nom = item['nom']?.toString() ?? 'Sans nom';
+              final lien = item['lienParente']?.toString() ?? '';
+              final id = item['id'];
+
+              return ListTile(
+                title: Text(nom),
+                subtitle: Text(lien),
+                trailing: id is int
+                    ? IconButton(
+                        icon: const Icon(Icons.delete),
+                        onPressed: () async {
+                          await ApiService.supprimerMembre(id);
+                          _rechargerMembres();
+                        },
+                      )
+                    : null,
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}
+
      },
    );
  }
